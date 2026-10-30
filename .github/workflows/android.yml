@@ -6,6 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     steps:
       - name: Download source
@@ -31,12 +32,40 @@ jobs:
           sdkmanager "ndk;27.2.12479018"
           sdkmanager "cmake;3.22.1"
 
-      - name: Build ELIXO APK
+      - name: Check project
         run: |
+          echo "Checking ELIXO project..."
+          ls -la
+          echo "Gradle version:"
           chmod +x gradlew
-          ./gradlew :TMessagesProj_App:assembleAfatDebug --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g"
+          ./gradlew --version
+
+      - name: Build ELIXO APK
+        id: build
+        shell: bash
+        run: |
+          set +e
+          ./gradlew :TMessagesProj_App:assembleAfatDebug \
+            --no-daemon \
+            --stacktrace \
+            --info \
+            -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" \
+            2>&1 | tee elixo-build.log
+
+          RESULT=${PIPESTATUS[0]}
+          echo "Build exit code: $RESULT"
+          exit "$RESULT"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ELIXO-Build-Log
+          path: elixo-build.log
+          if-no-files-found: warn
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ELIXO-APK
